@@ -1,101 +1,220 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Dream Swing Stats Charts</title>
-    <link rel="stylesheet" href="https://pyscript.net/releases/2023.11.1/core.css">
-    <script type="module" src="https://pyscript.net/releases/2023.11.1/core.js"></script>
+    <title>Dream Swing Run Charts</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        canvas {
+            margin: 20px 0;
+            width: 100%;
+            max-width: 600px;
+        }
+    </style>
 </head>
 <body>
 
-    <h1>Dream Swing Stats Charts</h1>
+    <h1>Dream Swing Run Charts</h1>
 
     <div>
-        <label for="dataInput">Enter Data JSON:</label><br>
-        <textarea id="dataInput" rows="10" cols="50"></textarea><br>
-        <button id="submitBtn" pys-onClick="generate_charts">Submit</button>
+        <label for="dataInput">Enter "stats" field JSON (from <a href="https://ds.naezith.com/#/level/1" target="_blank">https://ds.naezith.com/</a>):</label><br>
+        <textarea id="dataInput" rows="10" cols="50">"{\"travelDistance\": 11866,\"collected\": 177,\"bumps\": 5,\"hooks\": 352,\"jumps\": 3,\"swings\": 242,\"pulls\": 9,\"falls\": 0,\"pickupTimes\": [2228,3403,4771,5446,6519,7524,7642,8761,9737,10301,11696,12521,14901,15263,16060,18537,19195,22068,22980,24175,24955,25931,26454,27404,28978,30506,33258,36280,37904,39151,41302,42090,43330,45026,46880,47458,49190,52146,54974,57284,59053,60598,61816,64915,67844,69558,70807,72132,73474,75009,76167,77400,79305,80260,81705,82587,84850,86098,88509,90093,90250,91787,95525,96969,98179,100870,101985,103736,105396,106581,108830,109341,111190,112421,114965,116880,118446,120706,121579,123603,126745,127848,127960,130283,131668,133789,136184,138235,139529,141285,142788,144957,146677,148080,148700,150139,151727,153917,154066,156745,157976,159461,160754,162947,165887,168364,170271,172546,173565,175305,175879,178468,184545,186382,186617,188514,190710,192450,193562,196892,199459,202288,203650,205203,208576,209759,211464,213429,216682,217923,219812,220468,223322,225731,228184,228411,230066,230532,233288,234565,236767,238234,239768,241197,241912,243693,246192,248775,252913,253936,254855,256445,257351,259338,259849,260958,264478,266085,268910,272383,275554,278264,279230,281302,283299,285146,286660,288045,288918,290170,291362,291695,292785,295150,295165,297458,297886],\"pickupSpeeds\": [272,310,336,354,345,343,340,366,363,336,356,328,376,378,361,372,396,392,410,423,443,438,418,407,425,475,375,397,432,446,380,352,397,316,311,325,349,366,392,375,365,385,447,413,383,466,418,399,423,472,467,484,479,455,453,502,456,421,453,476,483,455,452,444,454,466,425,454,439,445,437,428,470,411,448,430,449,475,439,409,484,471,473,477,353,371,342,398,363,372,388,391,424,431,446,443,448,435,435,457,448,462,444,473,489,514,479,480,466,488,487,490,220,292,292,327,332,332,357,334,146,269,304,305,375,381,357,404,404,388,429,436,346,362,420,418,366,370,374,405,427,422,447,432,417,405,423,427,448,450,469,488,422,438,442,482,426,435,364,295,318,368,374,364,397,388,409,420,430,456,415,419,432,436,441,434,440],\"avgSpeedOnPickup\": 407}"</textarea><br>
+        <button id="submitBtn" onclick="generateCharts()">Submit</button>
     </div>
 
-    <div id="charts"></div>
+    <div>
+        <canvas id="totalOrbsChart"></canvas>
+        <canvas id="speedAtPickupChart"></canvas>
+        <canvas id="pickupSpeedsDistributionChart"></canvas>
+        <canvas id="secondsPerOrbChart"></canvas>
+        <canvas id="expectedFinalScoreChart"></canvas>
+    </div>
 
-    <py-script>
-        import micropip
-        import asyncio
+    <script>
+        function generateCharts() {
+            const dataInput = document.getElementById('dataInput').value;
+            let data = JSON.parse(dataInput);
+            if(!data.pickupSpeeds) data = JSON.parse(data);
+            const pickupTimes = data.pickupTimes ? data.pickupTimes.map(t => t / 1000) : []; // Convert to seconds
+            const pickupSpeeds = data.pickupSpeeds || [];
 
-        async def install_packages():
-            await micropip.install('matplotlib')
+            const totalGameTime = 300; // Seconds for total game time
 
-        asyncio.run(install_packages())
+            // Speed at Time of Orb Pickup
+            new Chart(document.getElementById('speedAtPickupChart'), {
+                type: 'line',
+                data: {
+                    labels: pickupTimes,
+                    datasets: [{
+                        label: 'Speed at Pickup',
+                        data: pickupSpeeds,
+                        fill: false,
+                        borderColor: 'red',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (seconds)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Speed (units)'
+                            }
+                        }
+                    }
+                }
+            });
 
-        import json
-        import matplotlib.pyplot as plt
-        import numpy as np
-        from js import document
-        from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+            // Distribution of Pickup Speeds with Grouped Bins
+            const speedBins = {};
+            pickupSpeeds.forEach(speed => {
+                const bin = Math.floor(speed / 10) * 10; // Group speeds in bins of 10
+                speedBins[bin] = (speedBins[bin] || 0) + 1;
+            });
 
-        def generate_charts():
-            data_json = document.getElementById('dataInput').value
-            data = json.loads(data_json)
+            const binLabels = Object.keys(speedBins).map(Number).sort((a, b) => a - b);
+            const binData = binLabels.map(bin => speedBins[bin]);
 
-            pickup_times = data['pickupTimes']
-            pickup_speeds = data['pickupSpeeds']
-            pickup_times_sec = np.array(pickup_times) / 1000
+            new Chart(document.getElementById('pickupSpeedsDistributionChart'), {
+                type: 'bar',
+                data: {
+                    labels: binLabels,
+                    datasets: [{
+                        label: 'Pickup Speed Frequency',
+                        data: binData,
+                        backgroundColor: 'green',
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Speed (units)'
+                            },
+                            ticks: {
+                                // Custom function to format the labels to show ranges
+                                callback: function(value, index, values) {
+                                    return `${value} - ${value + 9}`;
+                                }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Pickup Speed Frequency'
+                            }
+                        }
+                    }
+                }
+            });
 
-            # Clear existing charts
-            charts_div = document.getElementById('charts')
-            charts_div.innerHTML = ''
 
-            # Generate and display each chart
-            for chart_func in [plot_total_orbs, plot_speed_at_pickup, plot_pickup_speeds_distribution, plot_seconds_per_orb, plot_expected_final_score]:
-                fig, ax = plt.subplots()
-                chart_func(pickup_times_sec, pickup_speeds, ax)
-                canvas = FigureCanvas(fig)
-                canvas.draw()
-                img = canvas.get_renderer().tostring_rgb()
-                plt.close(fig)
+            // Total Collected Orb Count Over Time
+            const orbCount = pickupTimes.map((_, i) => i + 1);
+            new Chart(document.getElementById('totalOrbsChart'), {
+                type: 'line',
+                data: {
+                    labels: pickupTimes,
+                    datasets: [{
+                        label: 'Total Orbs Collected',
+                        data: orbCount,
+                        fill: false,
+                        borderColor: 'blue',
+                        pointStyle: 'circle',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (Seconds)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Total Orbs Collected'
+                            }
+                        }
+                    }
+                }
+            });
 
-                # Convert to HTML image and display
-                import base64
-                png_data = base64.b64encode(img).decode('ascii')
-                img_html = f'<img src="data:image/png;base64,{png_data}" />'
-                charts_div.innerHTML += img_html
+            // Seconds/Orb Over Time
+            const averageTimePerOrb = pickupTimes.map((t, i) => t / (i + 1));
+            new Chart(document.getElementById('secondsPerOrbChart'), {
+                type: 'line',
+                data: {
+                    labels: pickupTimes,
+                    datasets: [{
+                        label: 'Average Time Per Orb (Seconds)',
+                        data: averageTimePerOrb,
+                        fill: false,
+                        borderColor: 'orange',
+                        pointStyle: 'cross',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (Seconds)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Average Time Per Orb (Seconds)'
+                            }
+                        }
+                    }
+                }
+            });
 
-        def plot_total_orbs(pickup_times_sec, pickup_speeds, ax):
-            ax.plot(pickup_times_sec, np.arange(1, len(pickup_times_sec) + 1), marker='o')
-            ax.set_xlabel('Time (seconds)')
-            ax.set_ylabel('Total Collected Orbs')
-            ax.set_title('Total Collected Orb Count Over Time')
-            ax.grid(True)
-
-        def plot_speed_at_pickup(pickup_times_sec, pickup_speeds, ax):
-            ax.plot(pickup_times_sec, pickup_speeds, marker='o', color='r')
-            ax.set_xlabel('Time (seconds)')
-            ax.set_ylabel('Speed at Pickup (units)')
-            ax.set_title('Speed at Time of Orb Pickup')
-            ax.grid(True)
-
-        def plot_pickup_speeds_distribution(pickup_times_sec, pickup_speeds, ax):
-            ax.hist(pickup_speeds, bins=30, color='g')
-            ax.set_xlabel('Speed at Pickup (units)')
-            ax.set_ylabel('Frequency')
-            ax.set_title('Distribution of Pickup Speeds')
-            ax.grid(True)
-
-        def plot_seconds_per_orb(pickup_times_sec, pickup_speeds, ax):
-            seconds_per_orb = np.diff(pickup_times_sec, prepend=0)
-            ax.plot(pickup_times_sec, seconds_per_orb, marker='o', color='m')
-            ax.set_xlabel('Time (seconds)')
-            ax.set_ylabel('Seconds per Orb')
-            ax.set_title('Seconds/Orb Over Time')
-            ax.grid(True)
-
-        def plot_expected_final_score(pickup_times_sec, pickup_speeds, ax):
-            expected_final_score = np.arange(1, len(pickup_times_sec) + 1)
-            ax.plot(pickup_times_sec, expected_final_score, marker='o', color='c')
-            ax.set_xlabel('Time (seconds)')
-            ax.set_ylabel('Expected Final Score')
-            ax.set_title('Expected Final Score Over Time')
-            ax.grid(True)
-    </py-script>
+            // Expected Final Score Over Time
+            const expectedFinalScore = orbCount.map((count, i) => count / pickupTimes[i] * totalGameTime);
+            new Chart(document.getElementById('expectedFinalScoreChart'), {
+                type: 'line',
+                data: {
+                    labels: pickupTimes,
+                    datasets: [{
+                        label: 'Projected Final Score',
+                        data: expectedFinalScore,
+                        fill: false,
+                        borderColor: 'green',
+                        pointStyle: 'rect',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (Seconds)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Projected Final Score'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
 
 </body>
 </html>
