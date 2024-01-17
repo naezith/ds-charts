@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dream Swing Stats Charts</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2023.11.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2023.11.1/core.js"></script>
+</head>
+<body>
+
+    <h1>Dream Swing Stats Charts</h1>
+
+    <div>
+        <label for="dataInput">Enter Data JSON:</label><br>
+        <textarea id="dataInput" rows="10" cols="50"></textarea><br>
+        <button id="submitBtn" pys-onClick="generate_charts">Submit</button>
+    </div>
+
+    <div id="charts"></div>
+
+    <py-script>
+        import json
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from js import document
+        from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
+        def generate_charts():
+            data_json = document.getElementById('dataInput').value
+            data = json.loads(data_json)
+
+            pickup_times = data['pickupTimes']
+            pickup_speeds = data['pickupSpeeds']
+            pickup_times_sec = np.array(pickup_times) / 1000
+
+            # Clear existing charts
+            charts_div = document.getElementById('charts')
+            charts_div.innerHTML = ''
+
+            # Generate and display each chart
+            for chart_func in [plot_total_orbs, plot_speed_at_pickup, plot_pickup_speeds_distribution, plot_seconds_per_orb, plot_expected_final_score]:
+                fig, ax = plt.subplots()
+                chart_func(pickup_times_sec, pickup_speeds, ax)
+                canvas = FigureCanvas(fig)
+                canvas.draw()
+                img = canvas.get_renderer().tostring_rgb()
+                plt.close(fig)
+
+                # Convert to HTML image and display
+                import base64
+                png_data = base64.b64encode(img).decode('ascii')
+                img_html = f'<img src="data:image/png;base64,{png_data}" />'
+                charts_div.innerHTML += img_html
+
+        def plot_total_orbs(pickup_times_sec, pickup_speeds, ax):
+            ax.plot(pickup_times_sec, np.arange(1, len(pickup_times_sec) + 1), marker='o')
+            ax.set_xlabel('Time (seconds)')
+            ax.set_ylabel('Total Collected Orbs')
+            ax.set_title('Total Collected Orb Count Over Time')
+            ax.grid(True)
+
+        def plot_speed_at_pickup(pickup_times_sec, pickup_speeds, ax):
+            ax.plot(pickup_times_sec, pickup_speeds, marker='o', color='r')
+            ax.set_xlabel('Time (seconds)')
+            ax.set_ylabel('Speed at Pickup (units)')
+            ax.set_title('Speed at Time of Orb Pickup')
+            ax.grid(True)
+
+        def plot_pickup_speeds_distribution(pickup_times_sec, pickup_speeds, ax):
+            ax.hist(pickup_speeds, bins=30, color='g')
+            ax.set_xlabel('Speed at Pickup (units)')
+            ax.set_ylabel('Frequency')
+            ax.set_title('Distribution of Pickup Speeds')
+            ax.grid(True)
+
+        def plot_seconds_per_orb(pickup_times_sec, pickup_speeds, ax):
+            seconds_per_orb = np.diff(pickup_times_sec, prepend=0)
+            ax.plot(pickup_times_sec, seconds_per_orb, marker='o', color='m')
+            ax.set_xlabel('Time (seconds)')
+            ax.set_ylabel('Seconds per Orb')
+            ax.set_title('Seconds/Orb Over Time')
+            ax.grid(True)
+
+        def plot_expected_final_score(pickup_times_sec, pickup_speeds, ax):
+            expected_final_score = np.arange(1, len(pickup_times_sec) + 1)
+            ax.plot(pickup_times_sec, expected_final_score, marker='o', color='c')
+            ax.set_xlabel('Time (seconds)')
+            ax.set_ylabel('Expected Final Score')
+            ax.set_title('Expected Final Score Over Time')
+            ax.grid(True)
+    </py-script>
+
+</body>
+</html>
