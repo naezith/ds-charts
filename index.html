@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Game Data Visualization</title>
+    <title>Dream Swing Stats Charts</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2023.11.1/core.css">
     <script type="module" src="https://pyscript.net/releases/2023.11.1/core.js"></script>
 </head>
 <body>
 
-    <h1>Game Data Visualization</h1>
+    <h1>Dream Swing Stats Charts</h1>
 
     <div>
         <label for="dataInput">Enter Data JSON:</label><br>
@@ -19,7 +19,12 @@
 
     <py-script>
         import micropip
-        await micropip.install('matplotlib')
+        import asyncio
+
+        async def install_packages():
+            await micropip.install('matplotlib')
+
+        asyncio.run(install_packages())
 
         import json
         import matplotlib.pyplot as plt
